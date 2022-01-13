@@ -2,7 +2,7 @@
 'use strict'
 
 
-const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSubtitle} = require('../repos/tiny-youtube-downloader/index.js');
+const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSubtitle} = require('tiny-youtube-downloader');
 
 //*
 (async () => {
