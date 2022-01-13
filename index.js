@@ -49,13 +49,13 @@ async function download(url) {
     for (let format of infoObj.streamingData.formats) {
 	console.log(format.itag, format.qualityLabel);
     }
-    let mediaFormat = infoObj.streamingData.formats[0];  ///TODO: default use the first one
+    let mediaFormat = infoObj.streamingData.formats[0];  /// TODO: default use the first one
     for (let format of infoObj.streamingData.formats) {
 	if (format.qualityLabel === options.qualityLabel) {
 	    mediaFormat = format;
 	    break;  // choose first match, e.g. '360p'
 	}
-	///TODO: more options choose, e.g. choose container mp4 or webm
+	/// TODO: more options choose, e.g. choose container mp4 or webm
     }
 
     let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
@@ -121,8 +121,9 @@ async function extractUrlsFromList(url) {
 
 async function app(opts) {
     if (opts == null) return;
+    /// TODO: deep copy object. 深度拷貝對象，沒有則使用默認値。
 //    options = opts;
-    options = Object.assign(options, opts);
+    options = Object.assign(options, opts);  // 由於不是深度拷貝，如果存在 { subtitles: {} } 則會丟失默認値
     console.log(options);
     for (let i=0; i<options.uris.length; i++) {
 	if (options.uris[i].match(regWatchUrl)) {
@@ -130,6 +131,8 @@ async function app(opts) {
 	} else if (options.uris[i].match(regListUrl)) {
 	    let uriArray = await extractUrlsFromList(options.uris[i]);
 	    console.log(uriArray);
+	    /// TODO: 採用隊列先進先出以符合將來的 UI 調用。push() shift() for FIFO
+	    /// TODO: 控制並行下載的數量，及各個下載的進程顯示。control parallel downloads and progress bar
 	    for await (let url of uriArray) {  //只想逐個下載
 		console.log(url);
 		await download(url);
