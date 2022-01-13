@@ -53,6 +53,7 @@ async function download(url) {
     for (let format of infoObj.streamingData.formats) {
 	if (format.qualityLabel === options.qualityLabel) {
 	    mediaFormat = format;
+	    break;  // choose first match, e.g. '360p'
 	}
 	///TODO: more options choose, e.g. choose container mp4 or webm
     }
