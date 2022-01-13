@@ -1,0 +1,29 @@
+{
+  "name": "tiny-youtube-downloader",
+  "version": "1.0.0",
+  "description": "tiny youtube video/audio downloader",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/creatxrgithub/tiny-youtube-downloader.git"
+  },
+  "keywords": [
+    "tiny",
+    "youtube",
+    "video/audio",
+    "downloader"
+  ],
+  "author": "creatxr",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/creatxrgithub/tiny-youtube-downloader/issues"
+  },
+  "homepage": "https://github.com/creatxrgithub/tiny-youtube-downloader#readme",
+  "dependencies": {
+    "miniget": "^4.2.2",
+    "stream-progressbar": "^1.4.0"
+  }
+}
