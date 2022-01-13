@@ -68,14 +68,18 @@ async function download(url) {
 	    for (let captionTrack of captionTracks) {
 		let {baseUrl,languageCode} = captionTrack;
 		if (options.subtitles.captions.includes(languageCode)) {
-		    let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`);
+		    let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(/[\\\/\:]+/g,'_'));
 		    console.log(outputFileName);
-		    let wstream = fs.createWriteStream(outputFileName);
-		    let data = await miniget(baseUrl, options.commonHeaders);
-		    data.pipe(wstream);
-		    await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
-		    console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
-		    fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
+		    if (fs.existsSync(outputFileName)) {
+			console.log(`\x1b[33mskipping download: file exists "${outputFileName}".`);
+		    } else {
+			let wstream = fs.createWriteStream(outputFileName);
+			let data = await miniget(baseUrl, options.commonHeaders);
+			data.pipe(wstream);
+			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
+			console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
+			fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
+		    }
 		}
 	    }
 	} catch (e) {
@@ -84,11 +88,15 @@ async function download(url) {
     }
 
     if (options.willVideo) {
-	let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`);
+	let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(/[\\\/\:]+/g,'_'));
 	console.log(outputFileName);
-	let wstream = fs.createWriteStream(outputFileName);
-	miniget(mediaFormat.url, reqHeaders).pipe(progressBar(':bar')).pipe(wstream);  // progressBar(':bar') can use only ':bar' ?
-	await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
+	if (fs.existsSync(outputFileName)) {
+	    console.log(`\x1b[33mskipping download: file exists "${outputFileName}".`);
+	} else {
+	    let wstream = fs.createWriteStream(outputFileName);
+	    miniget(mediaFormat.url, reqHeaders).pipe(progressBar(':bar')).pipe(wstream);  // progressBar(':bar') can use only ':bar' ?
+	    await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
+	}
     }
 }
 
