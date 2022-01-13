@@ -174,24 +174,4 @@ function captionToSubtitle(xmlStringOrFileName) {
 }
 
 
-
-
-/*
-(async () => {
-    let testUrls = [
-	//'https://www.youtube.com/watch?v=OyTSP_TBynU',
-	'https://www.youtube.com/playlist?list=PLsbOngpFXUj8Q0S30FVbXMUFmVRwhrafc',
-    ];
-
-    options.uris.push(...testUrls);
-    options.outputDir = 'out';
-    options.willSubtitle = false;
-    options.willVideo = false;
-    options.qualityLabel = '360p'
-    options.subtitles.captions.push(...['zh-Hant','en-US']);
-    await app(options);
-
-})();  //end top async()
-//*/
-
 module.exports = {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSubtitle};
