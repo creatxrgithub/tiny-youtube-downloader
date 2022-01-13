@@ -19,7 +19,8 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
     }
 
     let testUrls = [
-	'https://www.youtube.com/watch?v=hET2MS1tIjA'
+	'https://www.youtube.com/watch?v=hET2MS1tIjA',
+	'https://www.youtube.com/playlist?list=PL2aBZuCeDwlRsa9T49dlm6vlZLfn1fSZ7'
     ];
 
     options.uris.push(...testUrls);
