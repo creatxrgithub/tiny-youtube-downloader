@@ -26,6 +26,7 @@ let options = {
 
 const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
 const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
+const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
 
 
 async function extractMediaInfoFromUrl(url) {
@@ -68,7 +69,7 @@ async function download(url) {
 	    for (let captionTrack of captionTracks) {
 		let {baseUrl,languageCode} = captionTrack;
 		if (options.subtitles.captions.includes(languageCode)) {
-		    let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(/[\\\/\:]+/g,'_'));
+		    let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
 		    console.log(outputFileName);
 		    if (fs.existsSync(outputFileName)) {
 			console.log(`\x1b[33mskipping download: file exists "${outputFileName}".`);
@@ -88,7 +89,7 @@ async function download(url) {
     }
 
     if (options.willVideo) {
-	let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(/[\\\/\:]+/g,'_'));
+	let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
 	console.log(outputFileName);
 	if (fs.existsSync(outputFileName)) {
 	    console.log(`\x1b[33mskipping download: file exists "${outputFileName}".`);
