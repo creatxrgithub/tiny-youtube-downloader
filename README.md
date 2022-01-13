@@ -1,3 +1,4 @@
+```
 'use strict'
 
 
@@ -31,3 +32,4 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
 
 })();  //end top async()
 //*/
+```
