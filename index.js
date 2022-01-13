@@ -131,7 +131,7 @@ async function app(opts) {
 }
 
 
-function numberToTime(num) {
+function secondsToTime(num) {
     let minutes = Math.floor(num / 60);
     let hours = minutes >60 ? Math.floor(minutes / 60) : 0;
     minutes = minutes > 60 ? Math.floor(minutes % 60) : minutes;
@@ -164,7 +164,7 @@ function captionToSubtitle(xmlStringOrFileName) {
 
     for (let i=0; i<subtitles.length; i++) {
 	let subtitleObj = JSON.parse(subtitles[i]);
-	subtitles[i] = `${numberToTime(subtitleObj.start)} --> ${numberToTime(subtitleObj.start + subtitleObj.dur)}\n${subtitleObj.text}\n\n`;
+	subtitles[i] = `${secondsToTime(subtitleObj.start)} --> ${secondsToTime(subtitleObj.start + subtitleObj.dur)}\n${subtitleObj.text}\n\n`;
     }
 
     for (let i=0; i<subtitles.length; i++) {
