@@ -13,8 +13,7 @@ const progressBar = require('stream-progressbar');
 
 
 let options = {
-    uris : [
-    ],
+    uris : [],
     outputDir : '.',
     subtitles : { captions: ['zh-Hant','en-US'], subtitleType: 'srt', downThemAll: true },
     willSubtitle :  false,
@@ -26,7 +25,7 @@ let options = {
 
 
 const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
-const regListUrl = /https:\/\/www\.youtube\.com\/playlist\?list=/i ;
+const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 
 
 async function extractMediaInfoFromUrl(url) {
