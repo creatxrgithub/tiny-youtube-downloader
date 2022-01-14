@@ -14,6 +14,7 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
 	willSubtitle :  false,
 	willVideo : false,
 	qualityLabel: '360p',
+	randomWait: { min: 0, max: 0 },
 	// "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
 	commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
     }

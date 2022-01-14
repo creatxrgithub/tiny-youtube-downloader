@@ -19,6 +19,7 @@ let options = {
     willSubtitle :  false,
     willVideo : false,
     qualityLabel: '360p',
+    randomWait: { min: 0, max: 0 },
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
     commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
 };  // end options
@@ -27,6 +28,7 @@ let options = {
 const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
 const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
+
 
 
 async function extractMediaInfoFromUrl(url) {
@@ -104,7 +106,7 @@ async function download(url) {
 
 async function extractUrlsFromList(url) {
     if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
-
+    /// TODO: only get urls in first page now. needs to get all the urls of the list.
     let content = await miniget(url).text();
     let varStr = content.match(/var\s+ytInitialData\s*=\s*\{.+?\}\s*[;\n]/g);
     let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
@@ -119,23 +121,46 @@ async function extractUrlsFromList(url) {
 }
 
 
+function timeout(ms) {
+    return new Promise((resolve) => {
+	    setTimeout(resolve, ms);
+    });
+}
+
+function random(min, max) {
+    if (min>max) [min,max] =[max,min];
+    return Math.floor(Math.random() * max) + min;
+}
+
 async function app(opts) {
     if (opts == null) return;
     /// TODO: deep copy object. 深度拷貝對象，沒有則使用默認値。
 //    options = opts;
     options = Object.assign(options, opts);  // 由於不是深度拷貝，如果存在 { subtitles: {} } 則會丟失默認値
     console.log(options);
-    for (let i=0; i<options.uris.length; i++) {
-	if (options.uris[i].match(regWatchUrl)) {
-	    await download(options.uris[i]);
-	} else if (options.uris[i].match(regListUrl)) {
-	    let uriArray = await extractUrlsFromList(options.uris[i]);
-	    console.log(uriArray);
-	    /// TODO: 採用隊列先進先出以符合將來的 UI 調用。push() shift() for FIFO
-	    /// TODO: 控制並行下載的數量，及各個下載的進程顯示。control parallel downloads and progress bar
-	    for await (let url of uriArray) {  //只想逐個下載
-		console.log(url);
-		await download(url);
+    while (options.uris.length>0) {
+	console.log("downloads remain:", options.uris.length);
+	let uri = options.uris.shift();
+	try {
+	    if (uri.match(regWatchUrl)) {
+		/// TODO: 控制並行下載的數量，及各個下載的進程顯示。control parallel downloads and progress bar
+		    await download(uri);
+	    } else if (uri.match(regListUrl)) {
+		let uriArray = await extractUrlsFromList(uri);
+		console.log(uriArray);
+		options.uris = uriArray.concat(options.uris);  //or use "options.uris.push(...uriArray);" add to the end
+		continue;
+	    }
+	} catch (e) {
+	    console.log('catch..................................');
+	    console.log(e);
+	    let logFileName = path.join(options.outputDir, 'download_errors.log');
+	    fs.writeFileSync(logFileName, `${mediaFormat.url}\n\n${e.trace().toString()}\n`, {flag:'a'});
+	}
+	// 放慢速度，隨機等待時間 random wait to slow down
+	if (options.randomWait != null) {
+	    if ((!Number.isNaN(options.randomWait.min)) && (!Number.isNaN(options.randomWait.max))) {
+		await timeout(random(options.randomWait.min,options.randomWait.max));
 	    }
 	}
     }
@@ -166,7 +191,7 @@ function captionToSubtitle(xmlStringOrFileName) {
 	xml = fs.readFileSync(xmlStringOrFileName, 'utf8');
     }
 
-    let regSubtitle = /\<text\s+start\=\"([\d\.]+)\" dur\=\"([\d\.]+)\"\>([^(?:\<\/text\>)]+)\<\/text\>\s*/gi
+    let regSubtitle = /\<text\s+start\=\"([\d\.]+)\" dur\=\"([\d\.]+)\"\>(.*?)\<\/text\>\s*/gi
     let subtitles = xml.match(regSubtitle);
 
     for (let i=0; i<subtitles.length; i++) {
