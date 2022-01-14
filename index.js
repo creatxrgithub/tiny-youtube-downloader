@@ -18,7 +18,7 @@ let options = {
     subtitles : { captions: ['zh-Hant','en-US'], subtitleType: 'srt', downThemAll: true },
     willSubtitle :  false,
     willVideo : false,
-    qualityLabel: '360p',
+    preferQuality : { itag: 18, qualityLabel: '360p' },
     randomWait: { min: 0, max: 0 },
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
     commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
@@ -53,7 +53,11 @@ async function download(url) {
     }
     let mediaFormat = infoObj.streamingData.formats[0];  /// TODO: default use the first one
     for (let format of infoObj.streamingData.formats) {
-	if (format.qualityLabel === options.qualityLabel) {
+	if (format.itag === options.preferQuality.itag) {
+	    mediaFormat = format;
+	    break;  // choose match of itag. 360p is 18.
+	}
+	if (format.qualityLabel === options.preferQuality.qualityLabel) {
 	    mediaFormat = format;
 	    break;  // choose first match, e.g. '360p'
 	}
@@ -87,6 +91,8 @@ async function download(url) {
 	    }
 	} catch (e) {
 	    ///TODO: 沒有字幕則略過，忽視異常。
+	    console.log(e);
+	    console.log('catch exception while getting captions. ignore..............................');
 	}
     }
 
@@ -152,8 +158,8 @@ async function app(opts) {
 		continue;
 	    }
 	} catch (e) {
-	    console.log('catch..................................');
 	    console.log(e);
+	    console.log('catch exception in app. log to file..............................');
 	    let logFileName = path.join(options.outputDir, 'download_errors.log');
 	    fs.writeFileSync(logFileName, `${mediaFormat.url}\n\n${e.trace().toString()}\n`, {flag:'a'});
 	}
@@ -204,8 +210,10 @@ function captionToSubtitle(xmlStringOrFileName) {
     }
 
     for (let i=0; i<subtitles.length; i++) {
-	retSubtitle += `${i+1}\n${subtitles[i]}`
+	retSubtitle += `${i+1}\n${subtitles[i]}`;
     }
+
+    retSubtitle = retSubtitle.replace(/\&amp\;\#39\;/g, '\'');  // it seems that only that "\&amp\;\#39\;"
 
     return retSubtitle;
 }
