@@ -19,8 +19,9 @@ let options = {
     willSubtitle :  false,
     willVideo : false,
     preferQuality : { itag: 18, qualityLabel: '360p' },
-    randomWait: { min: 6000, max: 12000 },
+    randomWait: { min: 12000, max: 12000 },
     resumeDownload: true,
+    maxFailture: 3,
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
     commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
 };  // end options
@@ -29,8 +30,8 @@ let options = {
 const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
 const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
-const log_name_error = 'downloads_errors.log';
-const log_name_remain = 'downloads_remain.log'
+const logNameError = 'downloads_errors.log';
+const logNameRemain = 'downloads_remain.log'
 
 
 async function extractMediaInfoFromUrl(url) {
@@ -66,6 +67,7 @@ async function download(url) {
 	/// TODO: more options choose, e.g. choose container mp4 or webm
     }
 
+    console.log(url);
     let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
     console.log(infoObj.videoDetails.title);
     let reqHeaders = Object.assign({}, options.commonHeaders, {Range: `bytes=0-${mediaFormat.contentLength}`});
@@ -147,9 +149,9 @@ async function app(opts) {
     options = Object.assign(options, opts);  // 由於不是深度拷貝，如果存在 { subtitles: {} } 則會丟失默認値
     console.log(options);
     if (options.resumeDownload==true) {
-	let remain_downloads = fs.readFileSync(path.join(options.outputDir,log_name_remain), 'utf8');
-//	options.uris = remain_downloads.split(/\n/g).concat(options.uris);
-	options.uris = remain_downloads.split(/\n/g);
+	let remainDownloads = fs.readFileSync(path.join(options.outputDir,logNameRemain), 'utf8');
+//	options.uris = remainDownloads.split(/\n/g).concat(options.uris);
+	options.uris = remainDownloads.split(/\n/g);
     }
     while (options.uris.length>0) {
 	console.log("downloads remain:", options.uris.length);
@@ -166,14 +168,17 @@ async function app(opts) {
 	    }
 	} catch (e) {
 	    console.log(e);
-	    let logFileName = path.join(options.outputDir, log_name_error);
+	    let logFileName = path.join(options.outputDir, logNameError);
 	    fs.writeFileSync(logFileName, `${uri}\n${e}\n\n`, {flag:'a'});
 	    console.log(`\x1b[31mcatch exception in app. log to file ${logFileName} ..............................\x1b[0m`);
 
-	    let remain_downloads = path.join(options.outputDir, log_name_remain);
-	    options.uris.unshift(uri);   /// it may put back to download list.
-	    fs.writeFileSync(remain_downloads, options.uris.join('\n'),  {flag:'w'});
-	    console.log(`\x1b[31msave remain download list to file ${remain_downloads} ..............................\x1b[0m`);
+	    let remainDownloads = path.join(options.outputDir, logNameRemain);
+	    if (options.maxFailture>=0) {
+		options.maxFailture -= 1;
+		options.uris.unshift(uri);   /// it may put back to download list.
+	    }
+	    fs.writeFileSync(remainDownloads, options.uris.join('\n'),  {flag:'w'});
+	    console.log(`\x1b[31msave remain download list to file ${remainDownloads} ..............................\x1b[0m`);
 
 	    await timeout(12000);  // if get exception, wait for a while.
 	}
