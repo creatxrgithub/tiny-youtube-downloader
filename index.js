@@ -19,7 +19,7 @@ let options = {
     willSubtitle :  false,
     willVideo : false,
     preferQuality : { itag: 18, qualityLabel: '360p' },
-    randomWait: { min: 0, max: 0 },
+    randomWait: { min: 6000, max: 12000 },
     resumeDownload: true,
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
     commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
@@ -167,11 +167,11 @@ async function app(opts) {
 	} catch (e) {
 	    console.log(e);
 	    let logFileName = path.join(options.outputDir, log_name_error);
-	    fs.writeFileSync(logFileName, `${uri}\n\n${e}\n`, {flag:'a'});
+	    fs.writeFileSync(logFileName, `${uri}\n${e}\n\n`, {flag:'a'});
 	    console.log(`\x1b[31mcatch exception in app. log to file ${logFileName} ..............................\x1b[0m`);
 
 	    let remain_downloads = path.join(options.outputDir, log_name_remain);
-	    ///options.uris.unshift(uri);   /// it may put back to download list.
+	    options.uris.unshift(uri);   /// it may put back to download list.
 	    fs.writeFileSync(remain_downloads, options.uris.join('\n'),  {flag:'w'});
 	    console.log(`\x1b[31msave remain download list to file ${remain_downloads} ..............................\x1b[0m`);
 
