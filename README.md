@@ -16,7 +16,7 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
 	willSubtitle :  false,
 	willVideo : false,
 	preferQuality : { itag: 18, qualityLabel: '360p' },
-	randomWait: { min: 6000, max: 12000 },  // slow down your batch downloads. otherwise it's easy get "403" error
+	randomWait: { min: 12000, max: 12000 },  // slow down your batch downloads. otherwise it's easy get "403" error
 	resumeDownload: true,
 	maxFailture: 3,
 	// "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER

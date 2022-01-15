@@ -46,6 +46,8 @@ async function extractMediaInfoFromUrl(url) {
 
 
 async function download(url) {
+    if ((url==='')||(url==null)) return;
+
     fs.mkdirSync(options.outputDir, { recursive: true });
 
     let infoObj = await extractMediaInfoFromUrl(url);
@@ -150,8 +152,8 @@ async function app(opts) {
     console.log(options);
     if (options.resumeDownload==true) {
 	let remainDownloads = fs.readFileSync(path.join(options.outputDir,logNameRemain), 'utf8');
-//	options.uris = remainDownloads.split(/\n/g).concat(options.uris);
-	options.uris = remainDownloads.split(/\n/g);
+	options.uris = remainDownloads.split(/\n+/g).concat(options.uris);
+//	options.uris = remainDownloads.split(/\n+/g);
     }
     while (options.uris.length>0) {
 	console.log("downloads remain:", options.uris.length);
