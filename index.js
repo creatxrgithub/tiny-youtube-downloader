@@ -22,6 +22,7 @@ let options = {
     randomWait : { min: 12000, max: 12000 },
     resumeDownload : true,
     maxFailtures : 3,
+    proxy : null,
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
     commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
 };  // end options
@@ -30,14 +31,25 @@ let options = {
 const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
 const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
+const regAntiBot = /https\:\/\/www\.google\.com\/recaptcha\/api\.js/gi;
 const logNameError = 'downloads_errors.log';
 const logNameRemain = 'downloads_remain.log';
+
+///TODO: miniget(url, { agent: new ProxyAgent(proxyUri) }) https://www.npmjs.com/package/proxy-agent
+function detectAntiBot(content) {
+    if (content.match(regAntiBot)==null) {
+	return false;
+    } else {
+	return true;
+    }
+}
 
 
 async function extractMediaInfoFromUrl(url) {
     if ((url==null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
 
-    let content = await miniget(url).text();
+    let content = await miniget(url, options.commonHeaders).text();
+    if (detectAntiBot(content)) process.exit(0);
     let varStr = content.match(/var\s+ytInitialPlayerResponse\s*=\s*\{.+?\}\s*[;\n]/g);
     let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
 
@@ -113,7 +125,8 @@ async function download(url) {
 async function extractUrlsFromList(url) {
     if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
     /// TODO: only get urls in first page now. needs to get all the urls of the list.
-    let content = await miniget(url).text();
+    let content = await miniget(url, options.commonHeaders).text();
+    if (detectAntiBot(content)) process.exit(0);
     let varStr = content.match(/var\s+ytInitialData\s*=\s*\{.+?\}\s*[;\n]/g);
     let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
     let reg = /\"url\":\"\/watch\?v\=[^\"]+\&list=[^\"]+\&index\=\d+\"/gi;
@@ -180,7 +193,8 @@ async function app(opts) {
 	    fs.writeFileSync(remainDownloads, options.uris.join('\n'),  {flag:'w'});
 	    console.log(`\x1b[31msave remain download list to file ${remainDownloads} ..............................\x1b[0m`);
 
-	    await timeout(12000);  // if get exception, wait for a while.
+//	    await timeout(12000);  // if get exception, wait for a while.
+	    process.exit(0);
 	}
 	// 放慢速度，隨機等待時間 random wait to slow down
 	if (options.randomWait != null) {

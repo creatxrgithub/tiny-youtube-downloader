@@ -1,5 +1,6 @@
 # free your hands, but slow down. please.
 ## 403 usually cause download too fast, 429 430 usually cause download too many. it may need proxy to change ip.
+### it seems that it cannot catch miniget's 403 error.
 ```
 'use strict'
 
@@ -19,7 +20,7 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
 	resumeDownload : true,
 	maxFailture : 3,
 	// "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
-	commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
+	commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},  //add "agent" here
     }
 
     let testUrls = [
