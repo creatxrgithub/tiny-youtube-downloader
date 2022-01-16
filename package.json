@@ -1,6 +1,6 @@
 {
   "name": "tiny-youtube-downloader",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "tiny youtube video/audio downloader",
   "main": "index.js",
   "scripts": {

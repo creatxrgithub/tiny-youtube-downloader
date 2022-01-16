@@ -15,13 +15,13 @@ const progressBar = require('stream-progressbar');
 let options = {
     uris : [],
     outputDir : '.',
-    subtitles : { captions: ['zh-Hant','en-US'], subtitleType: 'srt', downThemAll: true },
+    subtitles : { captions: ['zh-Hant','en-US','en'], subtitleType: 'srt', downThemAll: true },
     willSubtitle :  false,
     willVideo : false,
     preferQuality : { itag: 18, qualityLabel: '360p' },
-    randomWait: { min: 12000, max: 12000 },
-    resumeDownload: true,
-    maxFailture: 3,
+    randomWait : { min: 12000, max: 12000 },
+    resumeDownload : true,
+    maxFailtures : 3,
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
     commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
 };  // end options
@@ -31,7 +31,7 @@ const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
 const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
 const logNameError = 'downloads_errors.log';
-const logNameRemain = 'downloads_remain.log'
+const logNameRemain = 'downloads_remain.log';
 
 
 async function extractMediaInfoFromUrl(url) {
@@ -76,30 +76,24 @@ async function download(url) {
     console.log(reqHeaders);
 
     if (options.willSubtitle) {
-//	try {
-	    let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
-	    for (let captionTrack of captionTracks) {
-		let {baseUrl,languageCode} = captionTrack;
-		if (options.subtitles.captions.includes(languageCode)) {
-		    let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
-		    console.log(outputFileName);
-		    if (fs.existsSync(outputFileName)) {
-			console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
-		    } else {
-			let wstream = fs.createWriteStream(outputFileName);
-			let data = await miniget(baseUrl, options.commonHeaders);
-			data.pipe(wstream);
-			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
-			console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
-			fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
-		    }
+	let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
+	for (let captionTrack of captionTracks) {
+	    let {baseUrl,languageCode} = captionTrack;
+	    if (options.subtitles.captions.includes(languageCode)) {
+		let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
+		console.log(outputFileName);
+		if (fs.existsSync(outputFileName)) {
+		    console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
+		} else {
+		    let wstream = fs.createWriteStream(outputFileName);
+		    let data = await miniget(baseUrl, options.commonHeaders);
+		    data.pipe(wstream);
+		    await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
+		    console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
+		    fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
 		}
 	    }
-//	} catch (e) {
-//	    ///TODO: 沒有字幕則略過，忽視異常。
-//	    console.log(e);
-//	    console.log('catch exception while getting captions. ignore..............................');
-//	}
+	}
     }
 
     if (options.willVideo) {
@@ -149,11 +143,15 @@ async function app(opts) {
     /// TODO: deep copy object. 深度拷貝對象，沒有則使用默認値。
 //    options = opts;
     options = Object.assign(options, opts);  // 由於不是深度拷貝，如果存在 { subtitles: {} } 則會丟失默認値
+    options.maxFailtures = Number.isNaN(options.maxFailtures) ? 3 : options.maxFailtures;
     console.log(options);
     if (options.resumeDownload==true) {
-	let remainDownloads = fs.readFileSync(path.join(options.outputDir,logNameRemain), 'utf8');
-	options.uris = remainDownloads.split(/\s+/g).concat(options.uris);
-//	options.uris = remainDownloads.split(/\s+/g);
+	let logRemain = path.join(options.outputDir,logNameRemain);
+	if (fs.existsSync(logRemain)) {
+	    let remainDownloads = fs.readFileSync(logRemain, 'utf8');
+	    options.uris = remainDownloads.split(/\s+/g).concat(options.uris);
+	    //options.uris = remainDownloads.split(/\s+/g);
+	}
     }
     while (options.uris.length>0) {
 	console.log("downloads remain:", options.uris.length);
@@ -175,8 +173,8 @@ async function app(opts) {
 	    console.log(`\x1b[31mcatch exception in app. log to file ${logFileName} ..............................\x1b[0m`);
 
 	    let remainDownloads = path.join(options.outputDir, logNameRemain);
-	    if (options.maxFailture>=0) {
-		options.maxFailture -= 1;
+	    if (options.maxFailtures>=0) {
+		options.maxFailtures -= 1;
 		options.uris.unshift(uri);   /// it may put back to download list.
 	    }
 	    fs.writeFileSync(remainDownloads, options.uris.join('\n'),  {flag:'w'});
