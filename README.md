@@ -1,5 +1,4 @@
-# free your hands, but slow down. please.
-## 403 usually cause download too fast, 429 430 usually cause download too many. it may need proxy to change ip.
+### 403 usually cause download too fast, 429 430 usually cause download too many. it may need proxy to change ip.
 ### it seems that it cannot catch miniget's 403 error.
 ```
 'use strict'

@@ -24,14 +24,14 @@ let options = {
     maxFailtures : 3,
     proxy : null,
     // "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
-    commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},
+    commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0' },
 };  // end options
 
 
 const regWatchUrl = /^https:\/\/www\.youtube\.com\/watch\?v\=/i ;
 const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
-const regAntiBot = /https\:\/\/www\.google\.com\/recaptcha\/api\.js/gi;
+const regAntiBot = /https\:\/\/www\.google\.com\/recaptcha\/api\.js/gi;  /// TODO:
 const logNameError = 'downloads_errors.log';
 const logNameRemain = 'downloads_remain.log';
 
@@ -45,10 +45,10 @@ function detectAntiBot(content) {
 }
 
 
-async function extractMediaInfoFromUrl(url) {
+async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
     if ((url==null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
 
-    let content = await miniget(url, options.commonHeaders).text();
+    let content = await miniget(url, headers).text();
     if (detectAntiBot(content)) process.exit(0);
     let varStr = content.match(/var\s+ytInitialPlayerResponse\s*=\s*\{.+?\}\s*[;\n]/g);
     let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
@@ -57,7 +57,7 @@ async function extractMediaInfoFromUrl(url) {
 }
 
 
-async function download(url) {
+async function download(url, headers=options.commonHeaders) {
     if ((url==='')||(url==null)) return;
 
     fs.mkdirSync(options.outputDir, { recursive: true });
@@ -84,7 +84,7 @@ async function download(url) {
     console.log(url);
     let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
     console.log(infoObj.videoDetails.title);
-    let reqHeaders = Object.assign({}, options.commonHeaders, {Range: `bytes=0-${mediaFormat.contentLength}`});
+    let reqHeaders = Object.assign({}, headers, {Range: `bytes=0-${mediaFormat.contentLength}`});
     console.log(reqHeaders);
 
     if (options.willSubtitle) {
@@ -98,7 +98,7 @@ async function download(url) {
 		    console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
 		} else {
 		    let wstream = fs.createWriteStream(outputFileName);
-		    let data = await miniget(baseUrl, options.commonHeaders);
+		    let data = await miniget(baseUrl, headers);
 		    data.pipe(wstream);
 		    await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 		    console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
@@ -122,10 +122,10 @@ async function download(url) {
 }
 
 
-async function extractUrlsFromList(url) {
+async function extractUrlsFromList(url, headers=options.commonHeaders) {
     if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
     /// TODO: only get urls in first page now. needs to get all the urls of the list.
-    let content = await miniget(url, options.commonHeaders).text();
+    let content = await miniget(url, headers).text();
     if (detectAntiBot(content)) process.exit(0);
     let varStr = content.match(/var\s+ytInitialData\s*=\s*\{.+?\}\s*[;\n]/g);
     let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
