@@ -40,7 +40,7 @@ function detectAntiBot(content) {
 		return false;
 	} else {
 		return true;
-    }
+	}
 }
 
 
@@ -52,7 +52,7 @@ async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 	let varStr = content.match(/var\s+ytInitialPlayerResponse\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
 
-    return infoObj;
+	return infoObj;
 }
 
 
@@ -108,7 +108,7 @@ async function download(url, headers=options.commonHeaders) {
 		}
 	}
 
-    if (options.willVideo) {
+	if (options.willVideo) {
 		let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
 		console.log(outputFileName);
 		if (fs.existsSync(outputFileName)) {
@@ -147,8 +147,8 @@ function timeout(ms) {
 }
 
 function random(min, max) {
-    if (min>max) [min,max] =[max,min];
-    return Math.floor(Math.random() * max) + min;
+	if (min>max) [min,max] =[max,min];
+	return Math.floor(Math.random() * max) + min;
 }
 
 async function app(opts) {
@@ -193,7 +193,7 @@ async function app(opts) {
 			fs.writeFileSync(remainDownloads, options.uris.join('\n'));
 			console.log(`\x1b[31msave remain download list to file ${remainDownloads} ..............................\x1b[0m`);
 
-	//	    await timeout(12000);  // if get exception, wait for a while.
+	//await timeout(12000);  // if get exception, wait for a while.
 			process.exit(0);  /// TODO:
 		}
 		// 放慢速度，隨機等待時間 random wait to slow down
