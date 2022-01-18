@@ -238,7 +238,7 @@ function captionToSubtitle(xmlStringOrFileName) {
 	}
 
 	for (let i=0; i<subtitles.length; i++) {
-	let subtitleObj = JSON.parse(subtitles[i]);
+		let subtitleObj = JSON.parse(subtitles[i]);
 		subtitles[i] = `${secondsToTime(subtitleObj.start)} --> ${secondsToTime(subtitleObj.start + subtitleObj.dur)}\n${subtitleObj.text}\n\n`;
 	}
 
