@@ -134,7 +134,7 @@ async function extractUrlsFromList(url, headers=options.commonHeaders) {
 	let retArray = [];
 	let baseUrl = 'https://www.youtube.com';
 	for (let url of urls) {
-	retArray.push(baseUrl + url.replace(/\"url\":\"(\/watch\?v\=[^\"]+)\&list=.*/g,'$1'));
+		retArray.push(baseUrl + url.replace(/\"url\":\"(\/watch\?v\=[^\"]+)\&list=.*/g,'$1'));
 	}
 	return retArray;
 }
