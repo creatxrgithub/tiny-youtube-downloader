@@ -1,4 +1,7 @@
-### 403 usually cause download too fast, 429 430 usually cause download too many. it may need proxy to change ip.
+### 403 may cause of download too fast,
+### 429 430 may cause of download too many.
+### 404 may cause of request several times without headers
+### it may need proxy to change ip.
 ### it seems that it cannot catch miniget's 403 error.
 ```
 'use strict'

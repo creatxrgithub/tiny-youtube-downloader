@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const miniget = require('miniget');
 const progressBar = require('stream-progressbar');
-
+const needle = require('needle');
 
 
 let options = {
@@ -48,6 +48,11 @@ async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 	if ((url==null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
 
 	let content = await miniget(url, headers).text();
+	/*
+	let res = await needle('get', url, headers);  // not work with: let res = await needle('get', url, headers).body;
+	let content = res.body;
+	//*/
+//	console.log(content);
 	if (detectAntiBot(content)) process.exit(0);
 	let varStr = content.match(/var\s+ytInitialPlayerResponse\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
@@ -94,12 +99,20 @@ async function download(url, headers=options.commonHeaders) {
 			if (options.subtitles.captions.includes(languageCode)) {
 				let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
 				console.log(outputFileName);
-				if (fs.existsSync(outputFileName)) {
+				if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
 					console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
 				} else {
 					let wstream = fs.createWriteStream(outputFileName);
+					//*
 					let data = await miniget(baseUrl, headers);
 					data.pipe(wstream);
+					//*/
+					console.log(baseUrl);
+					/* it seems that it's easier to use "got" with "rawData". "const { got } = await import('got');" in async funtion.
+					let stream = needle.get(mediaFormat.url, commonHeaders);
+					stream.pipe(wstream);  // failed pipe to file here ( got 0 byte ).
+					stream.on('done', () => { console.log(outputFileName); });
+					//*/
 					await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 					console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
 					fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
@@ -111,10 +124,15 @@ async function download(url, headers=options.commonHeaders) {
 	if (options.willVideo) {
 		let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
 		console.log(outputFileName);
-		if (fs.existsSync(outputFileName)) {
+		if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
 			console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
 		} else {
 			let wstream = fs.createWriteStream(outputFileName);
+			/*
+			let stream = needle.get(mediaFormat.url, commonHeaders);
+			stream.pipe(wstream);  // success pipe to file here, but failed pipe the subtitle above ( got 0 byte ).
+			stream.on('done', () => { console.log(outputFileName); });
+			//*/
 			miniget(mediaFormat.url, reqHeaders).pipe(progressBar(':bar')).pipe(wstream);  // progressBar(':bar') can use only ':bar' ?
 			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 		}
@@ -126,6 +144,11 @@ async function extractUrlsFromList(url, headers=options.commonHeaders) {
 	if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
 	/// TODO: only get urls in first page now. needs to get all the urls of the list.
 	let content = await miniget(url, headers).text();
+	/*
+	let res = await needle('get', url, headers);
+	let content = res.body;
+	//*/
+//	console.log(content);
 	if (detectAntiBot(content)) process.exit(0);
 	let varStr = content.match(/var\s+ytInitialData\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
@@ -192,8 +215,7 @@ async function app(opts) {
 			//fs.writeFileSync(remainDownloads, options.uris.join('\n'),  {flag:'w'});
 			fs.writeFileSync(remainDownloads, options.uris.join('\n'));
 			console.log(`\x1b[31msave remain download list to file ${remainDownloads} ..............................\x1b[0m`);
-
-	//await timeout(12000);  // if get exception, wait for a while.
+			//await timeout(12000);  // if get exception, wait for a while.
 			process.exit(0);  /// TODO:
 		}
 		// 放慢速度，隨機等待時間 random wait to slow down
