@@ -3,6 +3,7 @@
 ### 404 may cause of request several times without headers
 ### it may need proxy to change ip.
 ### it seems that it cannot catch miniget's 403 error.
+### unable to pipe captions with needle, so cannot "await", use writeFileSync instead.
 ```
 'use strict'
 

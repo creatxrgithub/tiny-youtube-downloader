@@ -16,7 +16,7 @@ const needle = require('needle');
 let options = {
 	uris : [],
 	outputDir : '.',
-	subtitles : { captions: ['zh-Hant','en-US','en'], subtitleType: 'srt', downThemAll: true },
+	subtitles : { captions: [], subtitleType: 'srt', downThemAll: true },
 	willSubtitle :  false,
 	willVideo : false,
 	preferQuality : { itag: 18, qualityLabel: '360p' },
@@ -105,17 +105,20 @@ async function download(url, headers=options.commonHeaders) {
 				if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
 					console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
 				} else {
-					let wstream = fs.createWriteStream(outputFileName);
+					//unable to pipe caption with needle, so unable to await, use writeFileSync instead.
 					/*
+					let wstream = fs.createWriteStream(outputFileName);
 					let data = await miniget(baseUrl, headers);
 					data.pipe(wstream);
 					//*/
 					console.log(baseUrl);
 					//*
 					let data = await needle('get', baseUrl, headers);
-					wstream.write(data.raw);
+					fs.writeFileSync(outputFileName, data.raw);
+					//let stream = needle.get(baseUrl, headers);  //not work with async
+					//stream.pipe(progressBar(':bar')).pipe(wstream);
 					//*/
-					await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
+					//await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 					console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
 					fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
 				}
