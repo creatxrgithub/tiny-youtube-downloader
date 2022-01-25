@@ -7,9 +7,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const miniget = require('miniget');
+//const miniget = require('miniget');
 const progressBar = require('stream-progressbar');
 const needle = require('needle');
+
 
 
 let options = {
@@ -47,8 +48,8 @@ function detectAntiBot(content) {
 async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 	if ((url==null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
 
-	let content = await miniget(url, headers).text();
-	/*
+	//let content = await miniget(url, headers).text();
+	//*
 	let res = await needle('get', url, headers);  // not work with: let res = await needle('get', url, headers).body;
 	let content = res.body;
 	//*/
@@ -62,6 +63,8 @@ async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 
 
 async function download(url, headers=options.commonHeaders) {
+//	const { got } = import('got');
+
 	if ((url==='')||(url==null)) return;
 
 	fs.mkdirSync(options.outputDir, { recursive: true });
@@ -103,15 +106,14 @@ async function download(url, headers=options.commonHeaders) {
 					console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
 				} else {
 					let wstream = fs.createWriteStream(outputFileName);
-					//*
+					/*
 					let data = await miniget(baseUrl, headers);
 					data.pipe(wstream);
 					//*/
 					console.log(baseUrl);
-					/* it seems that it's easier to use "got" with "rawData". "const { got } = await import('got');" in async funtion.
-					let stream = needle.get(mediaFormat.url, commonHeaders);
-					stream.pipe(wstream);  // failed pipe to file here ( got 0 byte ).
-					stream.on('done', () => { console.log(outputFileName); });
+					//*
+					let data = await needle('get', baseUrl, headers);
+					wstream.write(data.raw);
 					//*/
 					await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 					console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
@@ -128,12 +130,12 @@ async function download(url, headers=options.commonHeaders) {
 			console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
 		} else {
 			let wstream = fs.createWriteStream(outputFileName);
-			/*
-			let stream = needle.get(mediaFormat.url, commonHeaders);
-			stream.pipe(wstream);  // success pipe to file here, but failed pipe the subtitle above ( got 0 byte ).
+			//miniget(mediaFormat.url, reqHeaders).pipe(progressBar(':bar')).pipe(wstream);  // progressBar(':bar') can use only ':bar' ?
+			//*
+			let stream = needle.get(mediaFormat.url, reqHeaders);
+			stream.pipe(progressBar(':bar')).pipe(wstream);  // success pipe to file here, but failed pipe the subtitle above ( got 0 byte ).
 			stream.on('done', () => { console.log(outputFileName); });
 			//*/
-			miniget(mediaFormat.url, reqHeaders).pipe(progressBar(':bar')).pipe(wstream);  // progressBar(':bar') can use only ':bar' ?
 			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 		}
 	}
@@ -143,8 +145,8 @@ async function download(url, headers=options.commonHeaders) {
 async function extractUrlsFromList(url, headers=options.commonHeaders) {
 	if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
 	/// TODO: only get urls in first page now. needs to get all the urls of the list.
-	let content = await miniget(url, headers).text();
-	/*
+	//let content = await miniget(url, headers).text();
+	//*
 	let res = await needle('get', url, headers);
 	let content = res.body;
 	//*/
