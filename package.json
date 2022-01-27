@@ -1,6 +1,6 @@
 {
   "name": "tiny-youtube-downloader",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "tiny youtube video/audio downloader",
   "main": "index.js",
   "scripts": {
@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/creatxrgithub/tiny-youtube-downloader#readme",
   "dependencies": {
-    "miniget": "^4.2.2",
+    "needle": "^3.0.0",
     "stream-progressbar": "^1.4.0"
   }
 }

@@ -2,8 +2,7 @@
 ### 429 430 may cause of download too many.
 ### 404 may cause of request several times without headers
 ### it may need proxy to change ip.
-### it seems that it cannot catch miniget's 403 error.
-### unable to pipe captions with needle, so cannot "await", use writeFileSync instead.
+### it seems that it cannot catch miniget's 403 error. change to use needle.
 ```
 'use strict'
 
@@ -24,6 +23,7 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
 		maxFailture : 3,
 		// "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
 		commonHeaders : {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0'},  //add "agent" here
+		httpMethods : { httpGetBody: null, httpGetRaw: null, httpGetStream: null }  //set your http methods here.
 	}
 
 	let testUrls = [

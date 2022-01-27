@@ -25,6 +25,7 @@ let options = {
 	maxFailtures : 3,
 	// "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
 	commonHeaders : { 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0' },
+	httpMethods : { httpGetBody: null, httpGetRaw: null, httpGetStream: null }
 };  // end options
 
 
@@ -45,50 +46,65 @@ function detectAntiBot(content) {
 }
 
 
+/**
+ * @return body
+ */
+async function httpGetBody(url, headers=options.commonHeaders) {
+	//const { got } = import('got');  // to use es6 module with import() function here.
+	//attention: it's not work with code "return await needle('get', url, headers).body;"
+	let res = await needle('get', url, headers);
+	return res.body;
+}
+/**
+ * @return raw data
+ */
+async function httpGetRaw(url, headers=options.commonHeaders) {
+	//attention: it's not work with code "return await needle('get', url, headers).raw;"
+	let res = await needle('get', url, headers);
+	return res.raw;
+}
+/**
+ * @return stream for pipe large media
+ */
+function httpGetStream(url, headers=options.commonHeaders) {
+	return needle.get(url, headers);
+}
+
+
 async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 	if ((url==null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
-
-	//let content = await miniget(url, headers).text();
-	//*
-	let res = await needle('get', url, headers);  // not work with: let res = await needle('get', url, headers).body;
-	let content = res.body;
-	//*/
-//	console.log(content);
+	let callback = httpGetBody;
+	if (typeof options.httpMethods.httpGetBody === 'function') {
+		callback = options.httpMethods.httpGetBody;
+	}
+	let content = await callback(url, headers);
 	if (detectAntiBot(content)) process.exit(0);
 	let varStr = content.match(/var\s+ytInitialPlayerResponse\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
-
 	return infoObj;
 }
 
 
 async function download(url, headers=options.commonHeaders) {
-//	const { got } = import('got');
-
 	if ((url==='')||(url==null)) return;
-
 	fs.mkdirSync(options.outputDir, { recursive: true });
-
 	let infoObj = await extractMediaInfoFromUrl(url);
 	if (infoObj==null) return;
-
 	for (let format of infoObj.streamingData.formats) {
 		console.log(format.itag, format.qualityLabel);
 	}
-
 	let mediaFormat = infoObj.streamingData.formats[0];  /// TODO: default use the first one
 	for (let format of infoObj.streamingData.formats) {
-	if (format.itag === options.preferQuality.itag) {
-		mediaFormat = format;
-		break;  // choose match of itag. 360p is 18.
+		if (format.itag === options.preferQuality.itag) {
+			mediaFormat = format;
+			break;  // choose match of itag. 360p is 18.
+		}
+		if (format.qualityLabel === options.preferQuality.qualityLabel) {
+			mediaFormat = format;
+			break;  // choose first match, e.g. '360p'
+		}
+		/// TODO: more options choose, e.g. choose container mp4 or webm
 	}
-	if (format.qualityLabel === options.preferQuality.qualityLabel) {
-		mediaFormat = format;
-		break;  // choose first match, e.g. '360p'
-	}
-	/// TODO: more options choose, e.g. choose container mp4 or webm
-	}
-
 	console.log(url);
 	let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
 	console.log(infoObj.videoDetails.title);
@@ -96,49 +112,46 @@ async function download(url, headers=options.commonHeaders) {
 	console.log(reqHeaders);
 
 	if (options.willSubtitle) {
-		let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
-		for (let captionTrack of captionTracks) {
-			let {baseUrl,languageCode} = captionTrack;
-			if (options.subtitles.captions.includes(languageCode)) {
-				let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
-				console.log(outputFileName);
-				if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-					console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
-				} else {
-					//unable to pipe caption with needle, so unable to await, use writeFileSync instead.
-					/*
-					let wstream = fs.createWriteStream(outputFileName);
-					let data = await miniget(baseUrl, headers);
-					data.pipe(wstream);
-					//*/
-					console.log(baseUrl);
-					//*
-					let data = await needle('get', baseUrl, headers);
-					fs.writeFileSync(outputFileName, data.raw);
-					//let stream = needle.get(baseUrl, headers);  //not work with async
-					//stream.pipe(progressBar(':bar')).pipe(wstream);
-					//*/
-					//await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
-					console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
-					fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
+		if (!infoObj.hasOwnProperty('captions.playerCaptionsTracklistRenderer.captionTracks')) {
+			console.log('\x1b[33m', 'no subtitles', '\x1b[0m');
+		} else {
+			let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
+			for (let captionTrack of captionTracks) {
+				let {baseUrl,languageCode} = captionTrack;
+				if (options.subtitles.captions.includes(languageCode)) {
+					let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
+					console.log(outputFileName);
+					if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
+						console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
+					} else {
+						let callback = httpGetRaw;
+						if (typeof options.httpMethods.httpGetRaw === 'function') {
+							callback = options.httpMethods.httpGetRaw;
+						}
+						let data = await callback(baseUrl, headers);
+						fs.writeFileSync(outputFileName, data);
+						console.log(baseUrl);
+						console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
+						fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
+					}
 				}
 			}
 		}
 	}
-
 	if (options.willVideo) {
 		let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
 		console.log(outputFileName);
 		if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-			console.log(`\x1b[33mskipping download: file exists "${outputFileName}".\x1b[0m`);
+			console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
 		} else {
 			let wstream = fs.createWriteStream(outputFileName);
-			//miniget(mediaFormat.url, reqHeaders).pipe(progressBar(':bar')).pipe(wstream);  // progressBar(':bar') can use only ':bar' ?
-			//*
-			let stream = needle.get(mediaFormat.url, reqHeaders);
-			stream.pipe(progressBar(':bar')).pipe(wstream);  // success pipe to file here, but failed pipe the subtitle above ( got 0 byte ).
+			let callback = httpGetStream;
+			if (typeof options.httpMethods.httpGetStream === 'function') {
+				callback = options.httpMethods.httpGetStream;
+			}
+			let stream = callback(mediaFormat.url, reqHeaders);
+			stream.pipe(progressBar(':bar')).pipe(wstream);
 			stream.on('done', () => { console.log(outputFileName); });
-			//*/
 			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
 		}
 	}
@@ -148,12 +161,11 @@ async function download(url, headers=options.commonHeaders) {
 async function extractUrlsFromList(url, headers=options.commonHeaders) {
 	if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
 	/// TODO: only get urls in first page now. needs to get all the urls of the list.
-	//let content = await miniget(url, headers).text();
-	//*
-	let res = await needle('get', url, headers);
-	let content = res.body;
-	//*/
-//	console.log(content);
+	let callback = httpGetBody;
+	if (typeof options.httpMethods.httpGetBody === 'function') {
+		callback = options.httpMethods.httpGetBody;
+	}
+	let content = await callback(url, headers);
 	if (detectAntiBot(content)) process.exit(0);
 	let varStr = content.match(/var\s+ytInitialData\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
@@ -210,7 +222,7 @@ async function app(opts) {
 			console.log(e);
 			let logFileName = path.join(options.outputDir, logNameError);
 			fs.writeFileSync(logFileName, `${uri}\n${e}\n\n`, {flag:'a'});
-			console.log(`\x1b[31mcatch exception in app. log to file ${logFileName} ..............................\x1b[0m`);
+			console.log('\x1b[31m', `catch exception in app. log to file ${logFileName} ..............................`, '\x1b[0m');
 
 			let remainDownloads = path.join(options.outputDir, logNameRemain);
 			if (options.maxFailtures>=0) {
@@ -219,7 +231,7 @@ async function app(opts) {
 			}
 			//fs.writeFileSync(remainDownloads, options.uris.join('\n'),  {flag:'w'});
 			fs.writeFileSync(remainDownloads, options.uris.join('\n'));
-			console.log(`\x1b[31msave remain download list to file ${remainDownloads} ..............................\x1b[0m`);
+			console.log('\x1b[31m', `save remain download list to file ${remainDownloads} ..............................`, '\x1b[0m');
 			//await timeout(12000);  // if get exception, wait for a while.
 			process.exit(0);  /// TODO:
 		}
@@ -243,38 +255,31 @@ function secondsToTime(num) {
 	seconds = seconds.toString().replace(/(\d+).?\d*/,'$1').padStart(2,'0');
 	minutes = minutes.toString().padStart(2,'0');
 	hours = hours.toString().padStart(2,'0');
-
 	return `${hours}:${minutes}:${seconds},${milliseconds}`;
 }
 
 
 
 function captionToSubtitle(xmlStringOrFileName) {
+	/// TODO: only convert xml to srt for now.
 	let retSubtitle = '';
-
 	let xml = xmlStringOrFileName;
 	if (fs.existsSync(xmlStringOrFileName)) {
 		xml = fs.readFileSync(xmlStringOrFileName, 'utf8');
 	}
-
 	let regSubtitle = /\<text\s+start\=\"([\d\.]+)\" dur\=\"([\d\.]+)\"\>(.*?)\<\/text\>\s*/gi
 	let subtitles = xml.match(regSubtitle);
-
 	for (let i=0; i<subtitles.length; i++) {
 		subtitles[i] = subtitles[i].replace(regSubtitle, `{"start": $1, "dur": $2, "text": "$3"}`);
 	}
-
 	for (let i=0; i<subtitles.length; i++) {
 		let subtitleObj = JSON.parse(subtitles[i]);
 		subtitles[i] = `${secondsToTime(subtitleObj.start)} --> ${secondsToTime(subtitleObj.start + subtitleObj.dur)}\n${subtitleObj.text}\n\n`;
 	}
-
 	for (let i=0; i<subtitles.length; i++) {
 		retSubtitle += `${i+1}\n${subtitles[i]}`;
 	}
-
 	retSubtitle = retSubtitle.replace(/\&amp\;\#39\;/g, '\'');  // it seems that only that "\&amp\;\#39\;"
-
 	return retSubtitle;
 }
 
