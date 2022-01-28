@@ -53,6 +53,10 @@ async function httpGetBody(url, headers=options.commonHeaders) {
 	//const { got } = import('got');  // to use es6 module with import() function here.
 	//attention: it's not work with code "return await needle('get', url, headers).body;"
 	let res = await needle('get', url, headers);
+	if (res.headers['set-cookie'] !== undefined) {
+		options.commonHeaders.cookie = res.headers['set-cookie'];
+	}
+	console.log(options.commonHeaders);
 	return res.body;
 }
 /**
@@ -110,9 +114,8 @@ async function download(url, headers=options.commonHeaders) {
 	console.log(infoObj.videoDetails.title);
 	let reqHeaders = Object.assign({}, headers, {Range: `bytes=0-${mediaFormat.contentLength}`});
 	console.log(reqHeaders);
-
 	if (options.willSubtitle) {
-		if (!infoObj.hasOwnProperty('captions.playerCaptionsTracklistRenderer.captionTracks')) {
+		if (infoObj.captions.playerCaptionsTracklistRenderer.captionTracks === undefined) {
 			console.log('\x1b[33m', 'no subtitles', '\x1b[0m');
 		} else {
 			let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
