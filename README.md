@@ -3,6 +3,7 @@
 ### 404 may cause of request several times without headers
 ### it may need proxy to change ip.
 ### it seems that it cannot catch miniget's 403 error. change to use needle.
+### don't have Object.hasOwn recursive check, use try...catch... instead.
 ```
 'use strict'
 

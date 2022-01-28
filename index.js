@@ -115,29 +115,39 @@ async function download(url, headers=options.commonHeaders) {
 	let reqHeaders = Object.assign({}, headers, {Range: `bytes=0-${mediaFormat.contentLength}`});
 	console.log(reqHeaders);
 	if (options.willSubtitle) {
-		if (infoObj.captions.playerCaptionsTracklistRenderer.captionTracks === undefined) {
-			console.log('\x1b[33m', 'no subtitles', '\x1b[0m');
-		} else {
-			let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
-			for (let captionTrack of captionTracks) {
-				let {baseUrl,languageCode} = captionTrack;
-				if (options.subtitles.captions.includes(languageCode)) {
-					let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
-					console.log(outputFileName);
-					if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-						console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
-					} else {
-						let callback = httpGetRaw;
-						if (typeof options.httpMethods.httpGetRaw === 'function') {
-							callback = options.httpMethods.httpGetRaw;
+		try {
+			//if (infoObj.captions.playerCaptionsTracklistRenderer.captionTracks === undefined) {
+			//if (!Object.hasOwn(infoObj,'captions.playerCaptionsTracklistRenderer.captionTracks')) {
+				//console.log('\x1b[33m', 'no subtitles', '\x1b[0m');
+			//} else {
+				let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
+				for (let captionTrack of captionTracks) {
+					let {baseUrl,languageCode} = captionTrack;
+					if (options.subtitles.captions.includes(languageCode)) {
+						let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
+						console.log(outputFileName);
+						if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
+							console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
+						} else {
+							let callback = httpGetRaw;
+							if (typeof options.httpMethods.httpGetRaw === 'function') {
+								callback = options.httpMethods.httpGetRaw;
+							}
+							let data = await callback(baseUrl, headers);
+							fs.writeFileSync(outputFileName, data);
+							console.log(baseUrl);
+							console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
+							fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
 						}
-						let data = await callback(baseUrl, headers);
-						fs.writeFileSync(outputFileName, data);
-						console.log(baseUrl);
-						console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
-						fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
 					}
 				}
+			//}
+		} catch (e) {
+			if (e.name === 'TypeError') {
+				//console.log(e.name);
+				console.log('\x1b[33m', 'no subtitles', '\x1b[0m')
+			} else {
+				throw e;
 			}
 		}
 	}
