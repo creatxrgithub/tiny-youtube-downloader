@@ -10,6 +10,7 @@ const path = require('path');
 //const miniget = require('miniget');
 const progressBar = require('stream-progressbar');
 const needle = require('needle');
+const querystring = require('querystring');
 
 
 
@@ -94,6 +95,11 @@ async function download(url, headers=options.commonHeaders) {
 	fs.mkdirSync(options.outputDir, { recursive: true });
 	let infoObj = await extractMediaInfoFromUrl(url);
 	if (infoObj==null) return;
+	//console.debug(infoObj);
+	if (infoObj.playabilityStatus.status === 'LOGIN_REQUIRED') {
+		console.log('LOGIN_REQUIRED');
+		return;
+	}
 	for (let format of infoObj.streamingData.formats) {
 		console.log(format.itag, format.qualityLabel);
 	}
@@ -157,12 +163,20 @@ async function download(url, headers=options.commonHeaders) {
 		if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
 			console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
 		} else {
+			console.log(mediaFormat);
+			let videoUrl = mediaFormat.url;
+			if (videoUrl === undefined) {
+				let obj = querystring.parse(mediaFormat.signatureCipher);
+				videoUrl = obj.url;  //unable to download by it
+			}
 			let wstream = fs.createWriteStream(outputFileName);
 			let callback = httpGetStream;
 			if (typeof options.httpMethods.httpGetStream === 'function') {
 				callback = options.httpMethods.httpGetStream;
 			}
-			let stream = callback(mediaFormat.url, reqHeaders);
+			let stream = callback(videoUrl, reqHeaders);
+			//let stream = callback(mediaFormat.url, reqHeaders);
+			//console.log(mediaFormat.url);
 			stream.pipe(progressBar(':bar')).pipe(wstream);
 			stream.on('done', () => { console.log(outputFileName); });
 			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
