@@ -115,6 +115,19 @@ async function download(url, headers=options.commonHeaders) {
 		}
 		/// TODO: more options choose, e.g. choose container mp4 or webm
 	}
+	if (Object.hasOwn(infoObj.streamingData, 'adaptiveFormats')) {
+		for (let format of infoObj.streamingData.adaptiveFormats) {
+			if (format.itag === options.preferQuality.itag) {
+				mediaFormat = format;
+				break;  // choose match of itag. 360p is 18.
+			}
+			if (format.qualityLabel === options.preferQuality.qualityLabel) {
+				mediaFormat = format;
+				break;  // choose first match, e.g. '360p'
+			}
+		}
+	}
+
 	console.log(url);
 	let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
 	console.log(infoObj.videoDetails.title);
