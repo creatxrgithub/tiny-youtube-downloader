@@ -44,8 +44,8 @@ const regListUrl = /^https:\/\/www\.youtube\.com\/playlist\?list=/i ;
 const regIllegalFilename = /[\s\#\%\&\{\}\\\<\>\*\?\/\$\!\'\"\:\@\+\`\|\=]+/g;
 const regJsUrl = /\"jsUrl\"\:.*?\/base\.js\"/;
 const regAntiBot = /https\:\/\/www\.google\.com\/recaptcha\/api\.js/gi;  /// TODO: <form action="/das_captcha?fw=1" method="POST">
-const logNameError = 'downloads_errors.log';
-const logNameRemain = 'downloads_remain.log';
+const logError = 'downloads_errors.log';
+const logRemain = 'downloads_remain.log';
 
 ///TODO: miniget(url, { agent: new ProxyAgent(proxyUri) }) https://www.npmjs.com/package/proxy-agent
 function detectAntiBot(content) {
@@ -67,7 +67,6 @@ async function httpGetBody(url, headers=options.commonHeaders) {
 	if (res.headers['set-cookie'] !== undefined) {
 		options.commonHeaders.cookie = res.headers['set-cookie'];
 	}
-	//console.debug(options.commonHeaders);
 	return res.body;
 }
 /**
@@ -91,15 +90,15 @@ class Cache extends Map {
 		super();
 	}
 
-	maxSize = 0;
+	maxSize = 5;
 
 	release() {
-		let old = [0,0];  //[key,time]
+		let old = [0, new Date()];  //[key, timeOfSaved]
 		for (let [k,v] of this) {
-			if (v[1]>old[1]) { old=[k,v[1]]; }
+			if (v.timeOfSaved<old[1]) { old=[k, v.timeOfSaved]; }
 		}
 		//console.blink(this.delete(old[0]));
-		this.delete(old[0])
+		this.delete(old[0]);
 	}
 
 	set(k,v) {
@@ -108,7 +107,12 @@ class Cache extends Map {
 				this.release();
 			}
 		}
-		super.set(k,v);
+		super.set(k, {data: v, timeOfSaved: new Date()});
+	}
+
+	get(k) {
+		let v = super.get(k);
+		return v.data;
 	}
 }
 let cache = new Cache();
@@ -118,27 +122,19 @@ async function extractDecipher(url, headers=options.commonHeaders) {
 	let functions = [];
 	let res = '';
 	if (cache.has(url)) {
-		res = cache.get[url][0];
-		cache.set(url, [res,new Date()]);  //key=[value,time]
+		res = cache.get[url];
 	} else {
 		res = await httpGetBody(url, headers);
 		res = res.toString();
-		//if (cache.size>=cache.maxSize) { cache.release(); }
-		cache.set(url, [res,new Date()]);  //key=[value,time]
+		cache.set(url, res);
 	}
-	//console.debug(res);
 	let functionName = res.match(/(?:a.set\(\"alr\"\,\"yes\"\)\;c\&\&\(c\=)(.+?)(?:\(decodeURIC)/)[1].toString();
-	//console.debug('functionName:', functionName);
 	let functionBody = res.match(new RegExp(`${functionName}=function\\\(a\\\)\\\{.+?\\\}`)).toString();
-	//console.debug(functionBody);
 	let manipulationsName = functionBody.match(new RegExp(`a=a.split\\\(\\\"\\\"\\\);(.+?)\\\.`))[1];
-	//console.debug(manipulationsName);
 	//var Fw=\{[\s\S]+?\}\}\; 成功
 	//var Fw=\{.+?\}\}\; 失敗，錯誤的原因：［.］匹配除「\r」「\n」之外的任何單个字符，而不是所有的字符。
 	let manipulationsBody = res.match(new RegExp(`var ${manipulationsName}=\\\{[\\\s\\\S]+?\\\}\\\}\\\;`)).toString();
-	//console.debug(manipulationsBody);
 	functions.push(`${manipulationsBody}; var ${functionBody}; ${functionName}(sig);`);
-	//console.debug(functions);
 	return functions;
 }
 
@@ -153,7 +149,6 @@ async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 	let varStr = content.match(/var\s+ytInitialPlayerResponse\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
 	let playerInfoObj = JSON.parse(`{${content.match(regJsUrl).toString()}}`);
-	//infoObj.html5player = `https://www.youtube.com${html5player.jsUrl}`;
 	return {infoObj, playerInfoObj};
 }
 
@@ -163,12 +158,10 @@ async function download(url, headers=options.commonHeaders) {
 	fs.mkdirSync(options.outputDir, { recursive: true });
 	let {infoObj, playerInfoObj} = await extractMediaInfoFromUrl(url);
 	if (infoObj==null) return;
-	//console.debug(infoObj);
 	if (infoObj.playabilityStatus.status === 'LOGIN_REQUIRED') {
 		console.info('LOGIN_REQUIRED');
 		return;
 	}
-	//console.debug(playerInfoObj);
 	for (let format of infoObj.streamingData.formats) {
 		console.info(format.itag, format.qualityLabel);
 	}
@@ -204,7 +197,6 @@ async function download(url, headers=options.commonHeaders) {
 	let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
 	console.info(infoObj.videoDetails.title);
 	let reqHeaders = Object.assign({}, headers, {Range: `bytes=0-${mediaFormat.contentLength}`});
-	//console.debug(reqHeaders);
 	if (options.willSubtitle) {
 		try {
 			//if (infoObj.captions.playerCaptionsTracklistRenderer.captionTracks === undefined) {
@@ -218,7 +210,6 @@ async function download(url, headers=options.commonHeaders) {
 						let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
 						console.log(outputFileName);
 						if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-							//console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
 							console.warn(`skipping download: file exists "${outputFileName}".`);
 						} else {
 							let callback = httpGetRaw;
@@ -237,7 +228,6 @@ async function download(url, headers=options.commonHeaders) {
 		} catch (e) {
 			if (e.name === 'TypeError') {
 				//console.log(e.name);
-				//console.log('\x1b[33m', 'no subtitles', '\x1b[0m')
 				console.warn('no subtitles');
 			} else {
 				throw e;
@@ -248,33 +238,25 @@ async function download(url, headers=options.commonHeaders) {
 		let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
 		console.log(outputFileName);
 		if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-			//console.log('\x1b[33m', `skipping download: file exists "${outputFileName}".`, '\x1b[0m');
 			console.warn(`skipping download: file exists "${outputFileName}".`);
 		} else {
 			console.info(mediaFormat);
 			let videoUrl = mediaFormat.url;
-			//console.log(videoUrl);
 			if (videoUrl === undefined) {
 				let obj = querystring.parse(mediaFormat.signatureCipher);
 				let functions = await extractDecipher(`https://www.youtube.com${playerInfoObj.jsUrl}`);
 				let decipherScript = functions.length ? new vm.Script(functions[0]) : null;
-				//console.log(decipherScript.runInNewContext({ sig: decodeURIComponent(obj.s) }));
-				videoUrl = obj.url;  //unable to download by it
 				let components = new URL(decodeURIComponent(obj.url));
 				components.searchParams.set(obj.sp ? obj.sp : 'signature',
 					decipherScript.runInNewContext({ sig: decodeURIComponent(obj.s) }));  //decipher
 				videoUrl = components.toString();
-				//console.log(videoUrl);
 			}
 			let wstream = fs.createWriteStream(outputFileName);
 			let callback = httpGetStream;
 			if (typeof options.httpMethods.httpGetStream === 'function') {
 				callback = options.httpMethods.httpGetStream;
 			}
-			//console.log(videoUrl);
 			let stream = callback(videoUrl, reqHeaders);
-			//let stream = callback(mediaFormat.url, reqHeaders);
-			//console.log(mediaFormat.url);
 			stream.pipe(progressBar(':bar')).pipe(wstream);
 			stream.on('done', () => { console.info(outputFileName); });
 			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
@@ -323,11 +305,10 @@ async function app(opts) {
 	options.maxFailtures = Number.isNaN(options.maxFailtures) ? 3 : options.maxFailtures;
 	console.log(options);
 	if (options.resumeDownload==true) {
-		let logRemain = path.join(options.outputDir,logNameRemain);
+		let logRemain = path.join(options.outputDir,logRemain);
 		if (fs.existsSync(logRemain)) {
 			let remainDownloads = fs.readFileSync(logRemain, 'utf8');
 			options.uris = remainDownloads.split(/\s+/g).concat(options.uris);
-			//options.uris = remainDownloads.split(/\s+/g);
 		}
 	}
 	while (options.uris.length>0) {
@@ -345,19 +326,17 @@ async function app(opts) {
 			}
 		} catch (e) {
 			console.error(e);
-			let logFileName = path.join(options.outputDir, logNameError);
+			let logFileName = path.join(options.outputDir, logError);
 			fs.writeFileSync(logFileName, `${uri}\n${e}\n\n`, {flag:'a'});
-			//console.log('\x1b[31m', `catch exception in app. log to file ${logFileName} ..............................`, '\x1b[0m');
 			console.error(`catch exception in app. log to file ${logFileName} ..............................`);
 
-			let remainDownloads = path.join(options.outputDir, logNameRemain);
+			let remainDownloads = path.join(options.outputDir, logRemain);
 			if (options.maxFailtures>=0) {
 				options.maxFailtures -= 1;
 				options.uris.unshift(uri);   /// it may put back to download list.
 			}
 			//fs.writeFileSync(remainDownloads, options.uris.join('\n'),  {flag:'w'});
 			fs.writeFileSync(remainDownloads, options.uris.join('\n'));
-			//console.log('\x1b[31m', `save remain download list to file ${remainDownloads} ..............................`, '\x1b[0m');
 			console.warn(`save remain download list to file ${remainDownloads} ..............................`);
 			//await timeout(12000);  // if get exception, wait for a while.
 			process.exit(0);  /// TODO:
