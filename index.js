@@ -112,8 +112,6 @@ class Cache extends Map {
 	get(k) {
 		let v = super.get(k);
 		//set(k,v.data);  //to update recently used
-		console.debug(v);
-		console.debug(v.data);
 		return v.data;
 	}
 }
