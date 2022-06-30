@@ -14,7 +14,7 @@ const querystring = require('querystring');
 const vm = require('vm');
 const util = require('util');
 
-//needle.defaults({ open_timeout: 600000 });
+needle.defaults({ open_timeout: 600000 });
 
 console.blink = function() { this._stdout.write('\x1b[5m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //blink
 console.debug = function() { this._stdout.write('\x1b[35m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //magenta
@@ -88,14 +88,13 @@ function httpGetStream(url, headers=options.commonHeaders) {
 class Cache extends Map {
 	constructor() {
 		super();
+		this.maxSize = 5;
 	}
-
-	maxSize = 5;
 
 	release() {
 		let old = [0, new Date()];  //[key, timeOfSaved]
 		for (let [k,v] of this) {
-			if (v.timeOfSaved<old[1]) { old=[k, v.timeOfSaved]; }
+			if (v.timeOfSaved<=old[1]) { old=[k, v.timeOfSaved]; }
 		}
 		//console.blink(this.delete(old[0]));
 		this.delete(old[0]);
@@ -112,29 +111,32 @@ class Cache extends Map {
 
 	get(k) {
 		let v = super.get(k);
+		//set(k,v.data);  //to update recently used
+		console.debug(v);
+		console.debug(v.data);
 		return v.data;
 	}
 }
-let cache = new Cache();
+const cache = new Cache();
 
 async function extractDecipher(url, headers=options.commonHeaders) {
 	//ro = splice, S6 = reverse, uW = swap
 	let functions = [];
-	let res = '';
 	if (cache.has(url)) {
-		res = cache.get[url];
+		functions.push(cache.get(url));
 	} else {
-		res = await httpGetBody(url, headers);
+		let res = await httpGetBody(url, headers);
 		res = res.toString();
-		cache.set(url, res);
+		let functionName = res.match(/(?:a.set\(\"alr\"\,\"yes\"\)\;c\&\&\(c\=)(.+?)(?:\(decodeURIC)/)[1].toString();
+		let functionBody = res.match(new RegExp(`${functionName}=function\\\(a\\\)\\\{.+?\\\}`)).toString();
+		let manipulationsName = functionBody.match(new RegExp(`a=a.split\\\(\\\"\\\"\\\);(.+?)\\\.`))[1];
+		//var Fw=\{[\s\S]+?\}\}\; 成功
+		//var Fw=\{.+?\}\}\; 失敗，錯誤的原因：［.］匹配除「\r」「\n」之外的任何單个字符，而不是所有的字符。
+		let manipulationsBody = res.match(new RegExp(`var ${manipulationsName}=\\\{[\\\s\\\S]+?\\\}\\\}\\\;`)).toString();
+		let scriptText = `${manipulationsBody}; var ${functionBody}; ${functionName}(sig);`;
+		functions.push(scriptText);
+		cache.set(url, scriptText);
 	}
-	let functionName = res.match(/(?:a.set\(\"alr\"\,\"yes\"\)\;c\&\&\(c\=)(.+?)(?:\(decodeURIC)/)[1].toString();
-	let functionBody = res.match(new RegExp(`${functionName}=function\\\(a\\\)\\\{.+?\\\}`)).toString();
-	let manipulationsName = functionBody.match(new RegExp(`a=a.split\\\(\\\"\\\"\\\);(.+?)\\\.`))[1];
-	//var Fw=\{[\s\S]+?\}\}\; 成功
-	//var Fw=\{.+?\}\}\; 失敗，錯誤的原因：［.］匹配除「\r」「\n」之外的任何單个字符，而不是所有的字符。
-	let manipulationsBody = res.match(new RegExp(`var ${manipulationsName}=\\\{[\\\s\\\S]+?\\\}\\\}\\\;`)).toString();
-	functions.push(`${manipulationsBody}; var ${functionBody}; ${functionName}(sig);`);
 	return functions;
 }
 
@@ -177,7 +179,6 @@ async function download(url, headers=options.commonHeaders) {
 		}
 		/// TODO: more options choose, e.g. choose container mp4 or webm
 	}
-
 	if ((mediaFormat === infoObj.streamingData.formats[0]) && ((mediaFormat.itag != options.preferQuality.itag) || (mediaFormat.qualityLabel != options.preferQuality.qualityLabel))) {
 		if (Object.hasOwn(infoObj.streamingData, 'adaptiveFormats')) {
 			for (let format of infoObj.streamingData.adaptiveFormats) {
@@ -192,7 +193,6 @@ async function download(url, headers=options.commonHeaders) {
 			}
 		}
 	}
-
 	console.log(url);
 	let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
 	console.info(infoObj.videoDetails.title);
