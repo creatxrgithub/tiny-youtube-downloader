@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * to download from youtube must have params: url and option {Range: `bytes=0-${mediaFormat.contentLength}`}.
+ * to download from youtube must have params: url and setting {Range: `bytes=0-${mediaFormat.contentLength}`} in headers.
  * it seems that ${mediaFormat.contentLength} is "undefined" if the size of media is less than 1 megabytes. but it still works.
  */
 
@@ -14,7 +14,7 @@ const querystring = require('querystring');
 const vm = require('vm');
 const util = require('util');
 
-needle.defaults({ open_timeout: 600000 });
+//needle.defaults({ open_timeout: 600000 }); //unuseful. it still cannot quarantee get stream.
 
 console.blink = function() { this._stdout.write('\x1b[5m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //blink
 console.debug = function() { this._stdout.write('\x1b[35m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //magenta
@@ -49,7 +49,7 @@ const logRemain = 'downloads_remain.log';
 
 ///TODO: miniget(url, { agent: new ProxyAgent(proxyUri) }) https://www.npmjs.com/package/proxy-agent
 function detectAntiBot(content) {
-	if (content.match(regAntiBot)==null) {
+	if (content.match(regAntiBot)===null) {
 		return false;
 	} else {
 		return true;
@@ -57,13 +57,36 @@ function detectAntiBot(content) {
 }
 
 
+/*//https://github.com/tomas/needle#request-options
+let opts = {
+  headers: {},
+  agent: http.Agent
+};
+needle.get(url,opts);
+*/
+
+/*//notes:
+1. objInstance.hasOwnProperty('keyName')
+2. Object.hasOwn(objInstance, 'keyName')
+3. in operator
+  console.log('keyName' in objInstance)
+4. Comparing with undefined
+  objInstance.keyName !== undefined
+*/
+
 /**
  * @return body
  */
 async function httpGetBody(url, headers=options.commonHeaders) {
 	//const { got } = import('got');  // to use es6 module with import() function here.
 	//attention: it's not work with code "return await needle('get', url, headers).body;"
-	let res = await needle('get', url, headers);
+	let opts = Object.assign({}, {headers: headers});
+	if ('agent' in options) {
+		if (options.agent !== null) {
+			opts = Object.assign(opts, {agent: options.agent});
+		}
+	}
+	let res = await needle('get', url, opts);
 	if (res.headers['set-cookie'] !== undefined) {
 		options.commonHeaders.cookie = res.headers['set-cookie'];
 	}
@@ -74,15 +97,28 @@ async function httpGetBody(url, headers=options.commonHeaders) {
  */
 async function httpGetRaw(url, headers=options.commonHeaders) {
 	//attention: it's not work with code "return await needle('get', url, headers).raw;"
-	let res = await needle('get', url, headers);
+	let opts = Object.assign({}, {headers: headers});
+	if ('agent' in options) {
+		if (options.agent !== null) {
+			opts = Object.assign(opts, {agent: options.agent});
+		}
+	}
+	let res = await needle('get', url, opts);
 	return res.raw;
 }
 /**
  * @return stream for pipe large media
  */
 function httpGetStream(url, headers=options.commonHeaders) {
-	return needle.get(url, headers);
+	let opts = Object.assign({}, {headers: headers});
+	if ('agent' in options) {
+		if (options.agent !== null) {
+			opts = Object.assign(opts, {agent: options.agent});
+		}
+	}
+	return needle.get(url, opts);
 }
+
 
 
 class Cache extends Map {
@@ -92,7 +128,7 @@ class Cache extends Map {
 	}
 
 	release() {
-		let old = [0, new Date()];  //[key, timeOfSaved]
+		let old = [null, new Date()];  //[key, timeOfSaved]
 		for (let [k,v] of this) {
 			if (v.timeOfSaved<=old[1]) { old=[k, v.timeOfSaved]; }
 		}
@@ -139,7 +175,7 @@ async function extractDecipher(url, headers=options.commonHeaders) {
 }
 
 async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
-	if ((url==null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
+	if ((url===null)||(url==='')||(url.match(regWatchUrl)==null)) return null;
 	let callback = httpGetBody;
 	if (typeof options.httpMethods.httpGetBody === 'function') {
 		callback = options.httpMethods.httpGetBody;
@@ -154,10 +190,10 @@ async function extractMediaInfoFromUrl(url, headers=options.commonHeaders) {
 
 
 async function download(url, headers=options.commonHeaders) {
-	if ((url==='')||(url==null)) return;
+	if ((url==='')||(url===null)) return;
 	fs.mkdirSync(options.outputDir, { recursive: true });
 	let {infoObj, playerInfoObj} = await extractMediaInfoFromUrl(url);
-	if (infoObj==null) return;
+	if (infoObj===null) return;
 	if (infoObj.playabilityStatus.status === 'LOGIN_REQUIRED') {
 		console.info('LOGIN_REQUIRED');
 		return;
@@ -165,28 +201,28 @@ async function download(url, headers=options.commonHeaders) {
 	for (let format of infoObj.streamingData.formats) {
 		console.info(format.itag, format.qualityLabel);
 	}
-	let mediaFormat = infoObj.streamingData.formats[0];  /// TODO: default use the first one
+	let mediaFormat = infoObj.streamingData.formats[0]; ///TODO: default use the first one
 	for (let format of infoObj.streamingData.formats) {
 		if (format.itag === options.preferQuality.itag) {
 			mediaFormat = format;
-			break;  // choose match of itag. 360p is 18.
+			break; //choose match of itag. 360p is 18.
 		}
 		if (format.qualityLabel === options.preferQuality.qualityLabel) {
 			mediaFormat = format;
-			break;  // choose first match, e.g. '360p'
+			break; //choose first match, e.g. '360p'
 		}
-		/// TODO: more options choose, e.g. choose container mp4 or webm
+		///TODO: more options choose, e.g. choose container mp4 or webm
 	}
-	if ((mediaFormat === infoObj.streamingData.formats[0]) && ((mediaFormat.itag != options.preferQuality.itag) || (mediaFormat.qualityLabel != options.preferQuality.qualityLabel))) {
+	if ((mediaFormat === infoObj.streamingData.formats[0]) && ((mediaFormat.itag !== options.preferQuality.itag) || (mediaFormat.qualityLabel !== options.preferQuality.qualityLabel))) {
 		if (Object.hasOwn(infoObj.streamingData, 'adaptiveFormats')) {
 			for (let format of infoObj.streamingData.adaptiveFormats) {
 				if (format.itag === options.preferQuality.itag) {
 					mediaFormat = format;
-					break;  // choose match of itag. 2160p60 is 315.
+					break; //choose match of itag. 2160p60 is 315.
 				}
 				if (format.qualityLabel === options.preferQuality.qualityLabel) {
 					mediaFormat = format;
-					break;  // choose first match, e.g. '2160p60'
+					break; //choose first match, e.g. '2160p60'
 				}
 			}
 		}
@@ -197,32 +233,27 @@ async function download(url, headers=options.commonHeaders) {
 	let reqHeaders = Object.assign({}, headers, {Range: `bytes=0-${mediaFormat.contentLength}`});
 	if (options.willSubtitle) {
 		try {
-			//if (infoObj.captions.playerCaptionsTracklistRenderer.captionTracks === undefined) {
-			//if (!Object.hasOwn(infoObj,'captions.playerCaptionsTracklistRenderer.captionTracks')) {
-				//console.log('\x1b[33m', 'no subtitles', '\x1b[0m');
-			//} else {
-				let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
-				for (let captionTrack of captionTracks) {
-					let {baseUrl,languageCode} = captionTrack;
-					if (options.subtitles.captions.includes(languageCode)) {
-						let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
-						console.log(outputFileName);
-						if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-							console.warn(`skipping download: file exists "${outputFileName}".`);
-						} else {
-							let callback = httpGetRaw;
-							if (typeof options.httpMethods.httpGetRaw === 'function') {
-								callback = options.httpMethods.httpGetRaw;
-							}
-							let data = await callback(baseUrl, headers);
-							fs.writeFileSync(outputFileName, data);
-							console.log(baseUrl);
-							console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
-							fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
+			let captionTracks = infoObj.captions.playerCaptionsTracklistRenderer.captionTracks;
+			for (let captionTrack of captionTracks) {
+				let {baseUrl,languageCode} = captionTrack;
+				if (options.subtitles.captions.includes(languageCode)) {
+					let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
+					console.log(outputFileName);
+					if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
+						console.warn(`skipping download: file exists "${outputFileName}".`);
+					} else {
+						let callback = httpGetRaw;
+						if (typeof options.httpMethods.httpGetRaw === 'function') {
+							callback = options.httpMethods.httpGetRaw;
 						}
+						let data = await callback(baseUrl, headers);
+						fs.writeFileSync(outputFileName, data);
+						console.log(baseUrl);
+						console.log(`${outputFileName}\.${options.subtitles.subtitleType}`);
+						fs.writeFileSync(`${outputFileName}\.${options.subtitles.subtitleType}`, captionToSubtitle(outputFileName));
 					}
 				}
-			//}
+			}
 		} catch (e) {
 			if (e.name === 'TypeError') {
 				//console.log(e.name);
@@ -235,37 +266,48 @@ async function download(url, headers=options.commonHeaders) {
 	if (options.willVideo) {
 		let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
 		console.log(outputFileName);
-		if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
-			console.warn(`skipping download: file exists "${outputFileName}".`);
-		} else {
-			console.info(mediaFormat);
-			let videoUrl = mediaFormat.url;
-			if (videoUrl === undefined) {
-				let obj = querystring.parse(mediaFormat.signatureCipher);
-				let functions = await extractDecipher(`https://www.youtube.com${playerInfoObj.jsUrl}`);
-				let decipherScript = functions.length ? new vm.Script(functions[0]) : null;
-				let components = new URL(decodeURIComponent(obj.url));
-				components.searchParams.set(obj.sp ? obj.sp : 'signature',
-					decipherScript.runInNewContext({ sig: decodeURIComponent(obj.s) }));  //decipher
-				videoUrl = components.toString();
-			}
-			let wstream = fs.createWriteStream(outputFileName);
-			let callback = httpGetStream;
-			if (typeof options.httpMethods.httpGetStream === 'function') {
-				callback = options.httpMethods.httpGetStream;
-			}
-			let stream = callback(videoUrl, reqHeaders);
-			stream.pipe(progressBar(':bar')).pipe(wstream);
-			stream.on('done', () => { console.info(outputFileName); });
-			await new Promise(fulfill => wstream.on("finish", fulfill));  //wait for finishing download, then continue other in loop
+		let wsOpts = {flags: 'w'};
+		//set "Range:'bytes=startBytes-endBytes'" in headers to resume donwloads.
+		if (fs.existsSync(outputFileName)) {
+			console.warn(`resume download: file exists "${outputFileName}".`);
+			let downloadedSize = fs.statSync(outputFileName).size;
+			//console.log(fs.statSync(outputFileName));
+			console.log('resume file offset: ', downloadedSize);
+			reqHeaders = Object.assign({}, reqHeaders, {Range: `bytes=${downloadedSize}-${mediaFormat.contentLength}`});
+			wsOpts = {flags: 'as'};
 		}
+		console.info(mediaFormat);
+		let videoUrl = mediaFormat.url;
+		if (videoUrl === undefined) {
+			let obj = querystring.parse(mediaFormat.signatureCipher);
+			let functions = await extractDecipher(`https://www.youtube.com${playerInfoObj.jsUrl}`);
+			let decipherScript = functions.length ? new vm.Script(functions[0]) : null;
+			let components = new URL(decodeURIComponent(obj.url));
+			components.searchParams.set(obj.sp ? obj.sp : 'signature',
+				decipherScript.runInNewContext({ sig: decodeURIComponent(obj.s) })); //decipher
+			videoUrl = components.toString();
+		}
+		let wstream = fs.createWriteStream(outputFileName, wsOpts);
+		let callback = httpGetStream;
+		//console.debug(typeof options.httpMethods.httpGetStream);
+		if (typeof options.httpMethods.httpGetStream === 'function') {
+			callback = options.httpMethods.httpGetStream;
+		}
+		console.log(videoUrl);
+		console.log(reqHeaders);
+		let stream = callback(videoUrl, reqHeaders);
+		//https://nodejs.org/api/webstreams.html#class-readablestream
+		//for await (const chunk of stream)
+		stream.on('done', () => { console.info(outputFileName); });
+		stream.pipe(progressBar(':bar')).pipe(wstream);
+		await new Promise(fulfill => wstream.on("finish", fulfill)); //wait for finishing download, then continue other in loop
 	}
 }
 
 
 async function extractUrlsFromList(url, headers=options.commonHeaders) {
-	if ((url==null)||(url==='')||(url.match(regListUrl)==null)) return [];
-	/// TODO: only get urls in first page now. needs to get all the urls of the list.
+	if ((url===null)||(url==='')||(url.match(regListUrl)===null)) return [];
+	///TODO: only get urls in first page now. needs to get all the urls of the list.
 	let callback = httpGetBody;
 	if (typeof options.httpMethods.httpGetBody === 'function') {
 		callback = options.httpMethods.httpGetBody;
@@ -297,15 +339,15 @@ function random(min, max) {
 }
 
 async function app(opts) {
-	if (opts == null) return;
-	/// TODO: deep copy object. 深度拷貝對象，沒有則使用默認値。
+	if (opts === null) return;
+	///TODO: deep copy object. 深度拷貝對象，沒有則使用默認値。
 	options = Object.assign(options, opts);  // 由於不是深度拷貝，如果存在 { subtitles: {} } 則會丟失默認値
 	options.maxFailtures = Number.isNaN(options.maxFailtures) ? 3 : options.maxFailtures;
 	console.log(options);
-	if (options.resumeDownload==true) {
-		let logRemain = path.join(options.outputDir,logRemain);
-		if (fs.existsSync(logRemain)) {
-			let remainDownloads = fs.readFileSync(logRemain, 'utf8');
+	if (options.resumeDownload===true) {
+		let logRemainUris = path.join(options.outputDir,logRemain);
+		if (fs.existsSync(logRemainUris)) {
+			let remainDownloads = fs.readFileSync(logRemainUris, 'utf8');
 			options.uris = remainDownloads.split(/\s+/g).concat(options.uris);
 		}
 	}
@@ -314,12 +356,12 @@ async function app(opts) {
 		let uri = options.uris.shift();
 		try {
 			if (uri.match(regWatchUrl)) {
-			/// TODO: 控制並行下載的數量，及各個下載的進程顯示。control parallel downloads and progress bar
+			///TODO: 控制並行下載的數量，及各個下載的進程顯示。control parallel downloads and progress bar
 				await download(uri);
 			} else if (uri.match(regListUrl)) {
 				let uriArray = await extractUrlsFromList(uri);
 				console.log(uriArray);
-				options.uris = uriArray.concat(options.uris);  //or use "options.uris.push(...uriArray);" add to the end
+				options.uris = uriArray.concat(options.uris); //or use "options.uris.push(...uriArray);" add to the end
 				continue;
 			}
 		} catch (e) {
@@ -337,10 +379,10 @@ async function app(opts) {
 			fs.writeFileSync(remainDownloads, options.uris.join('\n'));
 			console.warn(`save remain download list to file ${remainDownloads} ..............................`);
 			//await timeout(12000);  // if get exception, wait for a while.
-			process.exit(0);  /// TODO:
+			process.exit(0); ///TODO:
 		}
 		// 放慢速度，隨機等待時間 random wait to slow down
-		if (options.randomWait != null) {
+		if (options.randomWait !== null) {
 			if ((!Number.isNaN(options.randomWait.min)) && (!Number.isNaN(options.randomWait.max))) {
 				await timeout(random(options.randomWait.min,options.randomWait.max));
 			}
@@ -355,7 +397,7 @@ function secondsToTime(num) {
 	minutes = minutes > 60 ? Math.floor(minutes % 60) : minutes;
 	let seconds = num%60;
 	let milliseconds = seconds.toString().replace(/\d+.?(\d)*/,'$1');
-	milliseconds = milliseconds == null ? 0 : milliseconds.toString().slice(0,2);
+	milliseconds = milliseconds === null ? 0 : milliseconds.toString().slice(0,2);
 	seconds = seconds.toString().replace(/(\d+).?\d*/,'$1').padStart(2,'0');
 	minutes = minutes.toString().padStart(2,'0');
 	hours = hours.toString().padStart(2,'0');
@@ -365,7 +407,7 @@ function secondsToTime(num) {
 
 
 function captionToSubtitle(xmlStringOrFileName) {
-	/// TODO: only convert xml to srt for now.
+	///TODO: only convert xml to srt for now.
 	let retSubtitle = '';
 	let xml = xmlStringOrFileName;
 	if (fs.existsSync(xmlStringOrFileName)) {

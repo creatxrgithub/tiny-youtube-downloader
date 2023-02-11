@@ -40,7 +40,18 @@ const {extractMediaInfoFromUrl, download, extractUrlsFromList, app, captionToSub
 	options.preferQuality.qualityLabel = '360p';
 	options.subtitles.captions.push(...['en']);
 	//e.g. build your ProxyFactory and setting here.
-	//options.commonHeaders = Object.assign(options.commonHeaders, {agent: await ProxyFactory.getProxy()});
+	//options = Object.assign(options, {agent: await ProxyFactory.getProxy()});
+	//options.agent = await ProxyFactory.getProxy();
+	/*
+	//how to wrap async function calls into a sync function?
+	//it may do as a top-level async call: (async() => {})();
+	options.agent = () => {
+		(async() => {
+			let retObj = await ProxyFactory.getProxy();
+			return retObj;
+		})();
+	}
+	//*/
 	await app(options);
 
 })();  //end top async()
