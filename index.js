@@ -13,10 +13,12 @@ const needle = require('needle');
 const querystring = require('querystring');
 const vm = require('vm');
 const util = require('util');
+const iconv = require('iconv-lite');
+const chardet = require('chardet');
 
 //needle.defaults({ open_timeout: 600000 }); //unuseful. it still cannot quarantee get stream.
 
-console.blink = function() { this._stdout.write('\x1b[5m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //blink
+console.blink = function() { this._stdout.write('\x1b[5m\x1b[33m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //blink
 console.debug = function() { this._stdout.write('\x1b[35m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //magenta
 console.info = function() { this._stdout.write('\x1b[36m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //cyan
 console.warn = function() { this._stderr.write('\x1b[33m' + util.format.apply(this, arguments) + '\x1b[0m\n'); }; //yellow
@@ -29,9 +31,10 @@ let options = {
 	subtitles : { captions: [], subtitleType: 'srt', downThemAll: true },
 	willSubtitle :  false,
 	willVideo : false,
-	preferQuality : { itag: 18, qualityLabel: '360p' },
+	//preferQuality : { itag: 18, qualityLabel: '360p' },
+	preferQuality : { itag: 18, qualityLabel: '' },
 	randomWait : { min: 12000, max: 120000 },
-	resumeDownload : true,
+	resumeRemainningUris : false,
 	maxFailtures : 3,
 	// "User-Agent" 由於含 "-" 號，不符合變量的定義，所以要用引號括起來。用於模擬瀏覽器的請求的 HTTP HEADER
 	commonHeaders : { 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0' },
@@ -54,6 +57,12 @@ function detectAntiBot(content) {
 	} else {
 		return true;
 	}
+}
+
+function encodingToUtf8(content) {
+		let buf = Buffer.from(content);
+		let encoding = chardet.detect(buf);
+		return iconv.decode(buf, encoding);
 }
 
 
@@ -116,6 +125,7 @@ function httpGetStream(url, headers=options.commonHeaders) {
 			opts = Object.assign(opts, {agent: options.agent});
 		}
 	}
+	opts = Object.assign(opts, {open_timeout: 0});
 	return needle.get(url, opts);
 }
 
@@ -201,31 +211,40 @@ async function download(url, headers=options.commonHeaders) {
 	for (let format of infoObj.streamingData.formats) {
 		console.info(format.itag, format.qualityLabel);
 	}
-	let mediaFormat = infoObj.streamingData.formats[0]; ///TODO: default use the first one
+	let mediaFormat = null; //infoObj.streamingData.formats[0]; ///TODO: default use the first one
 	for (let format of infoObj.streamingData.formats) {
+		//console.blink(format.itag, options.preferQuality.itag)
 		if (format.itag === options.preferQuality.itag) {
 			mediaFormat = format;
 			break; //choose match of itag. 360p is 18.
 		}
+		/*//TODO
 		if (format.qualityLabel === options.preferQuality.qualityLabel) {
 			mediaFormat = format;
 			break; //choose first match, e.g. '360p'
 		}
+		//*/
 		///TODO: more options choose, e.g. choose container mp4 or webm
 	}
-	if ((mediaFormat === infoObj.streamingData.formats[0]) && ((mediaFormat.itag !== options.preferQuality.itag) || (mediaFormat.qualityLabel !== options.preferQuality.qualityLabel))) {
+	//if ((mediaFormat.itag !== options.preferQuality.itag) || (mediaFormat.qualityLabel !== options.preferQuality.qualityLabel)) {
+	if ((mediaFormat===null) || (mediaFormat.itag !== options.preferQuality.itag)) { //Javascript condiction check is left first. So the nullCheck must be the first left condiction to avoid the "TypeError".
 		if (Object.hasOwn(infoObj.streamingData, 'adaptiveFormats')) {
 			for (let format of infoObj.streamingData.adaptiveFormats) {
 				if (format.itag === options.preferQuality.itag) {
 					mediaFormat = format;
 					break; //choose match of itag. 2160p60 is 315.
 				}
+				/*//TODO
 				if (format.qualityLabel === options.preferQuality.qualityLabel) {
 					mediaFormat = format;
 					break; //choose first match, e.g. '2160p60'
 				}
+				*/
 			}
 		}
+	}
+	if (mediaFormat === null ) {
+		mediaFormat = infoObj.streamingData.formats[0]; ///default using the first one
 	}
 	console.log(url);
 	let mediaContainer = mediaFormat.mimeType.replace(/.*(video|audio)\/(.+)\;.*/g,'$2');
@@ -237,7 +256,7 @@ async function download(url, headers=options.commonHeaders) {
 			for (let captionTrack of captionTracks) {
 				let {baseUrl,languageCode} = captionTrack;
 				if (options.subtitles.captions.includes(languageCode)) {
-					let outputFileName = path.join(options.outputDir,`${infoObj.videoDetails.title}.${languageCode}.xml`.replace(regIllegalFilename,'_'));
+					let outputFileName = path.join(options.outputDir,encodingToUtf8(`${infoObj.videoDetails.title}.${languageCode}.xml`).replace(regIllegalFilename,'_'));
 					console.log(outputFileName);
 					if (fs.existsSync(outputFileName) && (fs.statSync(outputFileName).size>0)) {
 						console.warn(`skipping download: file exists "${outputFileName}".`);
@@ -264,16 +283,20 @@ async function download(url, headers=options.commonHeaders) {
 		}
 	}
 	if (options.willVideo) {
-		let outputFileName = path.join(options.outputDir, `${infoObj.videoDetails.title}.${mediaContainer}`.replace(regIllegalFilename,'_'));
+		let outputFileName = path.join(options.outputDir, encodingToUtf8(`${infoObj.videoDetails.title}_itag${mediaFormat.itag}_${mediaFormat.qualityLabel}.${mediaContainer}`).replace(regIllegalFilename,'_'));
 		console.log(outputFileName);
 		let wsOpts = {flags: 'w'};
 		//set "Range:'bytes=startBytes-endBytes'" in headers to resume donwloads.
 		if (fs.existsSync(outputFileName)) {
-			console.warn(`resume download: file exists "${outputFileName}".`);
 			let downloadedSize = fs.statSync(outputFileName).size;
-			//console.log(fs.statSync(outputFileName));
-			console.log('resume file offset: ', downloadedSize);
-			reqHeaders = Object.assign({}, reqHeaders, {Range: `bytes=${downloadedSize}-${mediaFormat.contentLength}`});
+			console.log(fs.statSync(outputFileName));
+			if (downloadedSize.toString(10)===mediaFormat.contentLength) {
+				console.info(`download completed. skipping "${outputFileName}".`);
+				return;
+			}
+			console.warn(`resume download: file exists "${outputFileName}".`);
+			console.log('resume file offset: ', downloadedSize, `/${mediaFormat.contentLength}`);
+			reqHeaders = Object.assign({}, reqHeaders, {Range: `bytes=${downloadedSize}-${mediaFormat.contentLength}`.replace('undefined', Number.MAX_SAFE_INTEGER.toString())});
 			wsOpts = {flags: 'as'};
 		}
 		console.info(mediaFormat);
@@ -298,7 +321,7 @@ async function download(url, headers=options.commonHeaders) {
 		let stream = callback(videoUrl, reqHeaders);
 		//https://nodejs.org/api/webstreams.html#class-readablestream
 		//for await (const chunk of stream)
-		stream.on('done', () => { console.info(outputFileName); });
+		stream.on('done', (err) => { console.debug(err); console.info(outputFileName); });
 		stream.pipe(progressBar(':bar')).pipe(wstream);
 		await new Promise(fulfill => wstream.on("finish", fulfill)); //wait for finishing download, then continue other in loop
 	}
@@ -316,12 +339,14 @@ async function extractUrlsFromList(url, headers=options.commonHeaders) {
 	if (detectAntiBot(content)) process.exit(0);
 	let varStr = content.match(/var\s+ytInitialData\s*=\s*\{.+?\}\s*[;\n]/g);
 	let infoObj = JSON.parse(varStr.toString().match(/\{.+\}/g).toString());
-	let reg = /\"url\":\"\/watch\?v\=[^\"]+\&list=[^\"]+\&index\=\d+\"/gi;
+	//let reg = /\"url\":\"\/watch\?v\=[^\"]+\&list=[^\"]+\&index\=\d+\"/gi;
+	let reg = /(?<=\"url\"\:\")\/watch\?v\=[^\"]+(?=\&list=[^\"])/gi;
 	let urls = JSON.stringify(infoObj).match(reg);
 	let retArray = [];
 	let baseUrl = 'https://www.youtube.com';
 	for (let url of urls) {
-		retArray.push(baseUrl + url.replace(/\"url\":\"(\/watch\?v\=[^\"]+)\&list=.*/g,'$1'));
+		//retArray.push(baseUrl + url.replace(/\"url\":\"(\/watch\?v\=[^\"]+)\&list=.*/g,'$1'));
+		retArray.push(baseUrl + url);
 	}
 	return retArray;
 }
@@ -344,7 +369,7 @@ async function app(opts) {
 	options = Object.assign(options, opts);  // 由於不是深度拷貝，如果存在 { subtitles: {} } 則會丟失默認値
 	options.maxFailtures = Number.isNaN(options.maxFailtures) ? 3 : options.maxFailtures;
 	console.log(options);
-	if (options.resumeDownload===true) {
+	if (options.resumeRemainningUris===true) {
 		let logRemainUris = path.join(options.outputDir,logRemain);
 		if (fs.existsSync(logRemainUris)) {
 			let remainDownloads = fs.readFileSync(logRemainUris, 'utf8');
